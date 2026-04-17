@@ -23,9 +23,9 @@ const PORT = process.env.PORT || 3000;
 
 // ── Security & Middleware ──────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://your-cloud-run-domain.run.app']
-    : '*',
+  origin: process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+    : (process.env.NODE_ENV === 'production' ? false : '*'),
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -56,13 +56,10 @@ app.use((req, res, next) => {
 
 // ── Static Frontend ───────────────────────────────────────────────────────────
 const clientDistPath = path.join(__dirname, 'client', 'dist');
-const publicPath = path.join(__dirname, 'public');
 const hasClientBuild = fs.existsSync(path.join(clientDistPath, 'index.html'));
 
 if (hasClientBuild) {
   app.use(express.static(clientDistPath));
-} else {
-  app.use(express.static(publicPath));
 }
 
 // ── API Routes ────────────────────────────────────────────────────────────────
@@ -74,10 +71,14 @@ app.get('*', (req, res) => {
     return res.status(404).json({ error: 'Route not found', path: req.path });
   }
 
-  const fallbackIndex = hasClientBuild
-    ? path.join(clientDistPath, 'index.html')
-    : path.join(publicPath, 'index.html');
-  res.sendFile(fallbackIndex);
+  if (!hasClientBuild) {
+    return res.status(503).json({
+      error: 'Client build missing',
+      message: 'Run npm run build in the client folder before starting the server.',
+    });
+  }
+
+  res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 
 // ── Global Error Handler ──────────────────────────────────────────────────────
@@ -103,6 +104,7 @@ async function start() {
     const server = app.listen(PORT, () => {
       console.log(`\n\x1b[32m✅ Server running at http://localhost:${PORT}\x1b[0m`);
       console.log(`\x1b[32m✅ API ready at http://localhost:${PORT}/api/v1\x1b[0m`);
+      console.log(`\x1b[32m✅ UI mode: ${hasClientBuild ? 'React client build' : 'Build required'}\x1b[0m`);
       console.log(`\x1b[32m✅ Stadium: ${process.env.STADIUM_NAME || 'Kishan Sports Arena'}\x1b[0m\n`);
     });
 

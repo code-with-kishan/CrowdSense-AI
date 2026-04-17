@@ -1,0 +1,10 @@
+node_modules/
+client/node_modules/
+dist/
+client/dist/
+.git/
+.github/
+.DS_Store
+*.log
+coverage/
+tests/

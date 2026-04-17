@@ -17,7 +17,7 @@ const { getQueueSummary } = require('./queueService');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const STADIUM_NAME = process.env.STADIUM_NAME || 'Kishan Sports Arena';
 
@@ -107,7 +107,10 @@ Rules:
 
   const response = await fetch(GEMINI_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(GEMINI_API_KEY ? { 'x-goog-api-key': GEMINI_API_KEY } : {}),
+    },
     body: JSON.stringify(body),
     timeout: 8000,
   });

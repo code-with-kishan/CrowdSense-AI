@@ -2,105 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Custom Base Styles ──────────────────────────────────────────────────── */
 @layer base {
+  :root {
+    --bg-night: #07111f;
+    --bg-mid: #0f2137;
+    --bg-glow: #163a45;
+    --panel: rgba(13, 25, 40, 0.84);
+    --panel-border: rgba(255, 255, 255, 0.12);
+  }
+
   body {
-    @apply bg-[#0a0a14] text-gray-100;
+    @apply text-slate-100;
+    font-family: 'Space Grotesk', 'Inter', 'Avenir Next', 'Segoe UI', sans-serif;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 120%, rgba(20,184,166,0.06) 0%, transparent 50%);
+      radial-gradient(ellipse 45% 35% at 20% 10%, rgba(248, 138, 24, 0.18), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 85% 85%, rgba(90, 224, 208, 0.13), transparent 70%),
+      linear-gradient(145deg, var(--bg-night), var(--bg-mid) 45%, var(--bg-glow));
+    background-attachment: fixed;
     min-height: 100vh;
   }
 
-  ::selection {
-    @apply bg-accent text-white;
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+      radial-gradient(circle at top, rgba(255,255,255,0.04), transparent 35%);
+    mix-blend-mode: screen;
   }
 
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  * { box-sizing: border-box; }
+  ::selection { @apply bg-amber-300 text-slate-900; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-white/10 rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-accent; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-white/20; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-white/40; }
 }
 
-/* ── Reusable Component Classes ──────────────────────────────────────────── */
 @layer components {
-  .glass-card {
-    @apply bg-white/[0.04] border border-white/[0.08] rounded-xl
-           transition-all duration-300;
-  }
-  .glass-card:hover {
-    @apply border-accent/30 shadow-lg shadow-accent/5;
-  }
-
-  .status-dot {
-    @apply w-2 h-2 rounded-full;
-  }
-  .status-dot-pulse {
-    @apply animate-pulse-slow;
+  .stadium-card {
+    @apply border shadow-lg transition-all duration-300 hover:-translate-y-0.5;
+    background: var(--panel);
+    border-color: var(--panel-border);
+    box-shadow: 0 12px 30px rgba(5, 10, 20, 0.45);
   }
 
-  .density-bar {
-    @apply h-1 bg-white/10 rounded-full overflow-hidden;
+  .stadium-card:hover {
+    box-shadow: 0 18px 50px rgba(5, 10, 20, 0.55);
+    border-color: rgba(255, 255, 255, 0.2);
   }
-  .density-fill {
-    @apply h-full rounded-full transition-all duration-700 ease-out;
-  }
-
-  .btn-primary {
-    @apply px-4 py-2 bg-gradient-to-r from-accent to-teal text-white rounded-lg
-           font-semibold text-sm transition-all duration-200
-           hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5
-           active:translate-y-0 disabled:opacity-40 disabled:cursor-not-allowed;
-  }
-
-  .btn-ghost {
-    @apply px-3 py-1.5 text-gray-400 hover:text-white bg-white/5
-           border border-white/10 rounded-lg text-xs font-medium
-           transition-all duration-200 hover:border-accent/30;
-  }
-
-  .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full
-           text-[10px] font-bold uppercase tracking-wider;
-  }
-
-  .input-field {
-    @apply w-full bg-transparent border-none outline-none text-gray-100
-           placeholder-gray-500 text-sm;
-  }
-
-  .chat-bubble {
-    @apply max-w-[85%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed;
-  }
-  .chat-bubble-ai {
-    @apply bg-accent/10 border border-accent/20 text-gray-100 rounded-bl-sm;
-  }
-  .chat-bubble-user {
-    @apply bg-accent/25 border border-accent/30 text-gray-100 rounded-br-sm;
-  }
-}
-
-/* ── Typing Indicator ──────────────────────────────────────────────────── */
-.typing-dot {
-  @apply w-1.5 h-1.5 rounded-full bg-accent-light;
-  animation: typingBounce 1.2s infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes typingBounce {
-  0%, 100% { opacity: 0.3; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-4px); }
-}
-
-/* ── Heatmap Zone Hover ────────────────────────────────────────────────── */
-.heatmap-zone {
-  @apply transition-all duration-300 cursor-pointer;
-  stroke: rgba(255,255,255,0.15);
-  stroke-width: 1;
-}
-.heatmap-zone:hover {
-  stroke: rgba(99,102,241,0.6);
-  stroke-width: 2;
-  filter: brightness(1.3);
 }
