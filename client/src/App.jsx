@@ -295,6 +295,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [assistantStatus, setAssistantStatus] = useState('checking');
   const chatSessionRef = useRef(`web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
   const mapSectionRef = useRef(null);
   const assistantSectionRef = useRef(null);
@@ -308,6 +309,27 @@ export default function App() {
     }, 2800);
 
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkAssistantHealth() {
+      try {
+        const res = await fetch('/api/v1/health');
+        const json = await res.json();
+        if (!active) return;
+        setAssistantStatus(json?.geminiConfigured ? 'online' : 'fallback');
+      } catch {
+        if (!active) return;
+        setAssistantStatus('offline');
+      }
+    }
+
+    checkAssistantHealth();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -400,6 +422,27 @@ export default function App() {
     }).slice(0, 3);
   }, [nearestFood, nearestRestroom, zones]);
 
+  const buildLocalAssistantResponse = (text) => {
+    const lower = text.toLowerCase();
+
+    if (lower.includes('best gate') || lower.includes('entry') || lower.includes('gate')) {
+      setSelectedZoneId(bestGate.gate.id);
+      return `${bestGate.gate.label} is the best entry now with ${statusText(bestGate.gate.crowd).toLowerCase()} and around ${bestGate.gate.wait} minutes wait.`;
+    }
+
+    if (lower.includes('food')) {
+      setSelectedZoneId(nearestFood.id);
+      return `${nearestFood.label} is the nearest food option, about ${formatDistance(nearestFood.distance)} away with ${statusText(nearestFood.crowd).toLowerCase()}.`;
+    }
+
+    if (lower.includes('restroom') || lower.includes('washroom') || lower.includes('toilet')) {
+      setSelectedZoneId(nearestRestroom.id);
+      return `${nearestRestroom.label} is your nearest restroom, around ${formatDistance(nearestRestroom.distance)} away with ${statusText(nearestRestroom.crowd).toLowerCase()}.`;
+    }
+
+    return `Right now I recommend entering from ${bestGate.gate.label}, with an estimated ${bestGate.gate.wait} minute wait and ${statusText(bestGate.gate.crowd).toLowerCase()}.`;
+  };
+
   const handleAsk = async (event) => {
     event.preventDefault();
     const text = chatInput.trim();
@@ -431,7 +474,7 @@ export default function App() {
         ...current,
         {
           role: 'assistant',
-          text: 'I am having trouble right now. Please try again in a moment.',
+          text: buildLocalAssistantResponse(text),
           source: 'client_fallback',
         },
       ]);
@@ -622,6 +665,12 @@ export default function App() {
           <section ref={assistantSectionRef} className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <SectionCard title="AI Assistant" icon="🤖">
               <div className="flex h-[380px] flex-col rounded-[1.6rem] border border-white/10 bg-slate-950/40 shadow-inner shadow-black/20">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-2 text-xs">
+                  <span className="text-slate-400">Assistant status</span>
+                  <span className={`font-semibold ${assistantStatus === 'online' ? 'text-emerald-300' : assistantStatus === 'fallback' ? 'text-amber-300' : assistantStatus === 'offline' ? 'text-rose-300' : 'text-slate-300'}`}>
+                    {assistantStatus === 'online' ? 'AI online' : assistantStatus === 'fallback' ? 'Fallback mode' : assistantStatus === 'offline' ? 'Offline' : 'Checking...'}
+                  </span>
+                </div>
                 <div className="flex-1 space-y-3 overflow-y-auto p-4">
                   {messages.map((message, index) => (
                     <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>

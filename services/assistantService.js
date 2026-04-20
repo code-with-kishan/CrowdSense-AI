@@ -17,7 +17,8 @@ const { getQueueSummary } = require('./queueService');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-const FALLBACK_MODELS = [GEMINI_MODEL, 'gemini-1.5-flash'].filter((m, i, arr) => arr.indexOf(m) === i);
+const FALLBACK_MODELS = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash']
+  .filter((m, i, arr) => arr.indexOf(m) === i);
 
 const STADIUM_NAME = process.env.STADIUM_NAME || 'Kishan Sports Arena';
 
