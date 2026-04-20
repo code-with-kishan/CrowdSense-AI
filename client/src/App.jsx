@@ -3,6 +3,7 @@ import { computePath, crowdColor, crowdLevel, findBestGate, nearestByType } from
 import { edges, graphNodes, movementTrack, zones as initialZones } from './data/stadiumData';
 import SectionCard from './components/SectionCard';
 import InsightCard from './components/InsightCard';
+import { sendAssistantMessage } from './api/assistantApi';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const viewBox = '0 0 1000 700';
@@ -292,6 +293,9 @@ export default function App() {
     { role: 'assistant', text: 'Ask: Which gate is best? Where is the nearest food stall?' },
   ]);
   const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const chatSessionRef = useRef(`web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
   const mapSectionRef = useRef(null);
   const assistantSectionRef = useRef(null);
 
@@ -396,30 +400,44 @@ export default function App() {
     }).slice(0, 3);
   }, [nearestFood, nearestRestroom, zones]);
 
-  const handleAsk = (event) => {
+  const handleAsk = async (event) => {
     event.preventDefault();
     const text = chatInput.trim();
-    if (!text) return;
+    if (!text || isChatLoading) return;
 
-    const lower = text.toLowerCase();
-    let response = 'Try: Which gate is best? Where is the nearest food stall?';
-
-    if (lower.includes('best gate')) {
-      response = `${bestGate.gate.label} is the best entry. Crowd is ${statusText(bestGate.gate.crowd)} and the wait is about ${bestGate.gate.wait} minutes.`;
-      setSelectedZoneId(bestGate.gate.id);
-    } else if (lower.includes('food')) {
-      response = `${nearestFood.label} is the nearest food stall. It is about ${formatDistance(nearestFood.distance)} away with ${statusText(nearestFood.crowd).toLowerCase()}.`;
-      setSelectedZoneId(nearestFood.id);
-    } else if (lower.includes('restroom')) {
-      response = `${nearestRestroom.label} is the nearest restroom. It is about ${formatDistance(nearestRestroom.distance)} away with ${statusText(nearestRestroom.crowd).toLowerCase()}.`;
-      setSelectedZoneId(nearestRestroom.id);
-    } else if (lower.includes('gate a')) {
-      response = 'Gate A is currently crowded. I would not recommend it right now.';
-      setSelectedZoneId('gateA');
-    }
-
-    setMessages((current) => [...current, { role: 'user', text }, { role: 'assistant', text: response }]);
+    setChatError('');
+    setMessages((current) => [...current, { role: 'user', text }]);
     setChatInput('');
+
+    try {
+      setIsChatLoading(true);
+      const result = await sendAssistantMessage({
+        message: text,
+        sessionId: chatSessionRef.current,
+      });
+
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          text: result.response,
+          source: result.source,
+        },
+      ]);
+    } catch (err) {
+      const message = err?.message || 'Unable to reach assistant right now.';
+      setChatError(message);
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          text: 'I am having trouble right now. Please try again in a moment.',
+          source: 'client_fallback',
+        },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   const scrollToMap = () => {
@@ -608,20 +626,36 @@ export default function App() {
                   {messages.map((message, index) => (
                     <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${message.role === 'user' ? 'bg-gradient-to-br from-emerald-300 to-cyan-300 text-slate-950' : 'border border-white/10 bg-white/[0.04] text-slate-100'}`}>
-                        {message.text}
+                        <div>{message.text}</div>
+                        {message.role === 'assistant' && message.source ? (
+                          <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-400">{message.source === 'gemini' ? 'Gemini' : 'Smart fallback'}</div>
+                        ) : null}
                       </div>
                     </div>
                   ))}
+                  {isChatLoading ? (
+                    <div className="flex justify-start">
+                      <div className="max-w-[85%] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+                        Thinking...
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
+                {chatError ? <p className="px-4 pb-2 text-xs text-rose-300">{chatError}</p> : null}
                 <form onSubmit={handleAsk} className="flex gap-2 border-t border-white/10 p-3">
                   <input
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
+                    disabled={isChatLoading}
                     className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-300/40 focus:bg-white/[0.06]"
                     placeholder='Ask: "Which gate is best?"'
                   />
-                  <button type="submit" className="rounded-2xl bg-gradient-to-br from-white to-slate-200 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:from-slate-50 hover:to-slate-200">
-                    Send
+                  <button
+                    type="submit"
+                    disabled={isChatLoading || !chatInput.trim()}
+                    className="rounded-2xl bg-gradient-to-br from-white to-slate-200 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:-translate-y-0.5 hover:from-slate-50 hover:to-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isChatLoading ? 'Sending...' : 'Send'}
                   </button>
                 </form>
               </div>

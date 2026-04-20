@@ -59,7 +59,15 @@ const clientDistPath = path.join(__dirname, 'client', 'dist');
 const hasClientBuild = fs.existsSync(path.join(clientDistPath, 'index.html'));
 
 if (hasClientBuild) {
-  app.use(express.static(clientDistPath));
+  app.use(express.static(clientDistPath, {
+    maxAge: '1y',
+    etag: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      }
+    },
+  }));
 }
 
 // ── API Routes ────────────────────────────────────────────────────────────────
@@ -78,6 +86,7 @@ app.get('*', (req, res) => {
     });
   }
 
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   res.sendFile(path.join(clientDistPath, 'index.html'));
 });
 

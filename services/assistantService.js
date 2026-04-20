@@ -17,7 +17,7 @@ const { getQueueSummary } = require('./queueService');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const FALLBACK_MODELS = [GEMINI_MODEL, 'gemini-1.5-flash'].filter((m, i, arr) => arr.indexOf(m) === i);
 
 const STADIUM_NAME = process.env.STADIUM_NAME || 'Kishan Sports Arena';
 
@@ -105,23 +105,42 @@ Rules:
     ],
   };
 
-  const response = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(GEMINI_API_KEY ? { 'x-goog-api-key': GEMINI_API_KEY } : {}),
-    },
-    body: JSON.stringify(body),
-    timeout: 8000,
-  });
+  let lastError = null;
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${err}`);
+  for (const model of FALLBACK_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(GEMINI_API_KEY ? { 'x-goog-api-key': GEMINI_API_KEY } : {}),
+        },
+        body: JSON.stringify(body),
+        timeout: 8000,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+        if (text) return text;
+        lastError = new Error(`Gemini empty response on model ${model}`);
+        break;
+      }
+
+      const err = await response.text();
+      lastError = new Error(`Gemini API error ${response.status} on ${model}: ${err}`);
+
+      const transient = response.status === 429 || response.status >= 500;
+      if (!transient || attempt === 1) break;
+
+      // brief backoff for temporary quota/rate spikes
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
   }
 
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  throw lastError || new Error('Gemini call failed');
 }
 
 /**
