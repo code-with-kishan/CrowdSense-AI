@@ -14,8 +14,8 @@ const { analyzeIntent, getResponseTone } = require('../utils/contextAnalyzer');
 const { getSmartEntryRoute, getGateRoute, getNearestFood, getNearestRestroom, getEmergencyExits, getExitStrategy } = require('./routingService');
 const { getSummary, getAlerts } = require('./crowdService');
 const { getQueueSummary } = require('./queueService');
+const { getGeminiApiKey } = require('./secretService');
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const FALLBACK_MODELS = [GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.0-flash']
   .filter((m, i, arr) => arr.indexOf(m) === i);
@@ -65,7 +65,9 @@ async function _buildStadiumContext() {
  * Call Gemini API for response generation.
  */
 async function _callGemini(userMessage, context, history, structuredData) {
-  if (!GEMINI_API_KEY || GEMINI_API_KEY.includes('your_')) {
+  const apiKey = await getGeminiApiKey();
+
+  if (!apiKey || apiKey.includes('your_')) {
     return null; // Trigger fallback
   }
 
@@ -116,7 +118,7 @@ Rules:
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(GEMINI_API_KEY ? { 'x-goog-api-key': GEMINI_API_KEY } : {}),
+          ...(apiKey ? { 'x-goog-api-key': apiKey } : {}),
         },
         body: JSON.stringify(body),
         timeout: 8000,

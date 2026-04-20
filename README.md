@@ -54,7 +54,20 @@ The UI is organized as a venue operations dashboard.
 
 - Frontend: React, Vite, Tailwind CSS
 - Backend: Node.js, Express
-- Optional services: Google Gemini, Firebase
+- Google Services: Cloud Run, Gemini API, Firebase Firestore, Secret Manager (optional)
+
+## Google Services Usage
+
+This project includes real Google service integrations, not only placeholders:
+
+1. Cloud Run for production hosting and runtime scaling.
+2. Gemini API for conversational assistant responses.
+3. Firebase Firestore via `firebase-admin` for persistent state when configured.
+4. Google Secret Manager via `@google-cloud/secret-manager` for secure runtime key loading.
+
+Health endpoint evidence:
+
+- `GET /api/v1/health` returns a `googleServices` object with current integration status.
 
 ## Key Files
 
@@ -89,6 +102,21 @@ If you want the React app during local development:
 cd client
 npm run dev
 ```
+
+## Production Configuration
+
+Set these environment variables in Cloud Run:
+
+- `NODE_ENV=production`
+- `GEMINI_MODEL=gemini-2.0-flash`
+- `GEMINI_API_KEY` (or use Secret Manager)
+- `GEMINI_API_KEY_SECRET` (optional Secret Manager resource name)
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (optional; for direct Firestore admin initialization)
+
+Secret Manager example format:
+
+- `projects/<PROJECT_NUMBER>/secrets/<SECRET_NAME>/versions/latest`
 
 ## Testing
 

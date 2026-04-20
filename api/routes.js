@@ -41,6 +41,10 @@ function asyncHandler(fn) {
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 router.get('/health', (req, res) => {
+  const geminiConfigured = !!(process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your_'));
+  const firebaseConfigured = !!(process.env.FIREBASE_PROJECT_ID && !process.env.FIREBASE_PROJECT_ID.includes('your-'));
+  const secretManagerConfigured = !!process.env.GEMINI_API_KEY_SECRET;
+
   res.json({
     status: 'ok',
     service: 'CrowdSense AI API',
@@ -48,8 +52,14 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: Math.round(process.uptime()),
     environment: process.env.NODE_ENV || 'development',
-    geminiConfigured: !!(process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your_')),
-    firebaseConfigured: !!(process.env.FIREBASE_PROJECT_ID && !process.env.FIREBASE_PROJECT_ID.includes('your-')),
+    geminiConfigured,
+    firebaseConfigured,
+    googleServices: {
+      cloudRun: true,
+      geminiApi: geminiConfigured,
+      firebase: firebaseConfigured,
+      secretManager: secretManagerConfigured,
+    },
   });
 });
 

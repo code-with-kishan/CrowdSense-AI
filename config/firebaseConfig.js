@@ -86,22 +86,52 @@ class InMemoryFirestore {
 
 // Check if real Firebase credentials exist
 const hasFirebaseCredentials =
-  firebaseConfig.apiKey &&
   firebaseConfig.projectId &&
-  !firebaseConfig.apiKey.includes('your_');
+  !String(firebaseConfig.projectId).includes('your-');
+
+function getServiceAccountFromEnv() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.log(`[Firebase] Invalid FIREBASE_SERVICE_ACCOUNT_JSON: ${err.message}`);
+    return null;
+  }
+}
+
+function initializeRealFirestore() {
+  // Load lazily so local/demo mode works without firebase-admin installed.
+  const admin = require('firebase-admin');
+  const serviceAccount = getServiceAccountFromEnv();
+
+  if (!admin.apps.length) {
+    if (serviceAccount) {
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: firebaseConfig.projectId,
+        storageBucket: firebaseConfig.storageBucket,
+      });
+    } else {
+      // Uses GOOGLE_APPLICATION_CREDENTIALS when present in Cloud Run / local env.
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+        projectId: firebaseConfig.projectId,
+        storageBucket: firebaseConfig.storageBucket,
+      });
+    }
+  }
+
+  return admin.firestore();
+}
 
 let db;
 
 if (hasFirebaseCredentials) {
   try {
-    // Production: Use real Firebase Admin SDK
-    // const admin = require('firebase-admin');
-    // if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.applicationDefault(), ...firebaseConfig });
-    // db = admin.firestore();
-    // console.log('[Firebase] ✅ Connected to Firestore');
-
-    // For now, fall through to simulation until firebase-admin is installed
-    throw new Error('firebase-admin not installed — using simulation');
+    db = initializeRealFirestore();
+    console.log('[Firebase] ✅ Connected to Firestore');
   } catch (err) {
     console.log(`[Firebase] ℹ️  Using in-memory simulation: ${err.message}`);
     db = new InMemoryFirestore();
