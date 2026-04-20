@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { computePath, crowdColor, crowdLevel, findBestGate, nearestByType } from './data/navigation';
 import { edges, graphNodes, movementTrack, zones as initialZones } from './data/stadiumData';
+import SectionCard from './components/SectionCard';
+import InsightCard from './components/InsightCard';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const viewBox = '0 0 1000 700';
+const PIXELS_PER_METER = 3.6;
+const BASE_WALK_SPEED_MPS = 1.35;
 
 function nextCrowdValue(value) {
   const drift = Math.round((Math.random() - 0.48) * 18);
@@ -16,38 +20,20 @@ function statusText(crowd) {
   return 'Low Congestion';
 }
 
-function SectionCard({ title, icon, children, className = '' }) {
-  return (
-    <section className={`group relative overflow-hidden rounded-[1.9rem] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_60px_rgba(2,6,23,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06] hover:shadow-[0_24px_80px_rgba(2,6,23,0.4)] ${className}`}>
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-70" />
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-          {icon} {title}
-        </h2>
-      </div>
-      {children}
-    </section>
-  );
+function distanceInMeters(pxDistance) {
+  return Math.max(1, Math.round(pxDistance / PIXELS_PER_METER));
 }
 
-function InsightCard({ label, value, hint, tone = 'slate' }) {
-  const palette = {
-    slate: 'from-slate-50 to-slate-300 text-slate-900',
-    green: 'from-emerald-50 to-emerald-300 text-emerald-900',
-    amber: 'from-amber-50 to-amber-300 text-amber-900',
-    red: 'from-rose-50 to-rose-300 text-rose-900',
-  };
+function formatDistance(pxDistance) {
+  const meters = distanceInMeters(pxDistance);
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`;
+}
 
-  return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-950/30 p-4 shadow-inner shadow-black/20 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-slate-950/40">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-      <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{label}</p>
-      <div className={`mt-2 inline-flex rounded-2xl bg-gradient-to-br px-3 py-2 text-sm font-semibold ${palette[tone] || palette.slate}`}>
-        {value}
-      </div>
-      <p className="mt-2 text-xs leading-5 text-slate-400">{hint}</p>
-    </div>
-  );
+function estimateEta(pxDistance, crowd = 40) {
+  const meters = distanceInMeters(pxDistance);
+  const crowdFactor = crowd >= 70 ? 0.72 : crowd >= 40 ? 0.86 : 1;
+  const seconds = meters / (BASE_WALK_SPEED_MPS * crowdFactor);
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
 }
 
 function Popup({ zone, onClose }) {
@@ -86,7 +72,7 @@ function handleSvgKeyActivate(event, handler) {
   }
 }
 
-function StadiumMap({ zones, userPoint, routePoints, selectedZone, selectedPath, onSelectZone, onSelectPath, onClearSelection, bestGate }) {
+function StadiumMap({ zones, userPoint, routePoints, selectedZone, selectedPath, onSelectZone, onSelectPath, onClearSelection, bestGate, routeStart, routeTarget, routeEtaLabel }) {
   const zoneById = Object.fromEntries(zones.map((zone) => [zone.id, zone]));
 
   const seatingRects = [
@@ -277,9 +263,9 @@ function StadiumMap({ zones, userPoint, routePoints, selectedZone, selectedPath,
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-amber-400/10 to-white/[0.03] p-4 shadow-[0_12px_40px_rgba(2,6,23,0.25)]">
             <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Route</p>
             <p className="mt-2 text-sm text-slate-200">
-              User → {selectedZone?.label || bestGate.gate.label}
+              {routeStart} {'->'} {routeTarget || selectedZone?.label || bestGate.gate.label}
             </p>
-            <p className="mt-1 text-xs text-slate-400">The orange route line updates from the moving user dot.</p>
+            <p className="mt-1 text-xs text-slate-400">The orange route line updates live and is currently estimated at {routeEtaLabel}.</p>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.03] p-4 shadow-[0_12px_40px_rgba(2,6,23,0.25)]">
@@ -307,6 +293,7 @@ export default function App() {
   ]);
   const [chatInput, setChatInput] = useState('');
   const mapSectionRef = useRef(null);
+  const assistantSectionRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -367,6 +354,7 @@ export default function App() {
     [crowdLookup, selectedZone?.id, userPoint],
   );
   const bestGate = useMemo(() => findBestGate({ userPoint, zones }), [userPoint, zones]);
+  const nearestGate = useMemo(() => nearestByType({ zones, userPoint, type: 'gate' }), [userPoint, zones]);
   const nearestFood = useMemo(() => nearestByType({ zones, userPoint, type: 'food' }), [userPoint, zones]);
   const nearestRestroom = useMemo(() => nearestByType({ zones, userPoint, type: 'restroom' }), [userPoint, zones]);
 
@@ -384,6 +372,30 @@ export default function App() {
     wait: selectedPath.wait,
   } : selectedZone;
 
+  const routeStart = nearestGate?.label || 'You';
+  const routeTarget = selectedZoneData?.label || bestGate.gate.label;
+  const routeDistanceLabel = formatDistance(route.distance);
+  const routeEtaLabel = estimateEta(route.distance, selectedZoneData?.crowd ?? bestGate.gate.crowd);
+
+  const queueItems = useMemo(() => {
+    const foodOptions = zones.filter((zone) => zone.type === 'food').sort((a, b) => a.wait - b.wait || a.crowd - b.crowd);
+    const restroomOptions = zones.filter((zone) => zone.type === 'restroom').sort((a, b) => a.wait - b.wait || a.crowd - b.crowd);
+
+    const shortlist = [
+      nearestFood,
+      nearestRestroom,
+      foodOptions.find((item) => item.id !== nearestFood.id),
+      restroomOptions.find((item) => item.id !== nearestRestroom.id),
+    ].filter(Boolean);
+
+    const seen = new Set();
+    return shortlist.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    }).slice(0, 3);
+  }, [nearestFood, nearestRestroom, zones]);
+
   const handleAsk = (event) => {
     event.preventDefault();
     const text = chatInput.trim();
@@ -396,10 +408,10 @@ export default function App() {
       response = `${bestGate.gate.label} is the best entry. Crowd is ${statusText(bestGate.gate.crowd)} and the wait is about ${bestGate.gate.wait} minutes.`;
       setSelectedZoneId(bestGate.gate.id);
     } else if (lower.includes('food')) {
-      response = `${nearestFood.label} is the nearest food stall. It is ${nearestFood.distance}px away with a ${crowdLevel(nearestFood.crowd)} crowd.`;
+      response = `${nearestFood.label} is the nearest food stall. It is about ${formatDistance(nearestFood.distance)} away with ${statusText(nearestFood.crowd).toLowerCase()}.`;
       setSelectedZoneId(nearestFood.id);
     } else if (lower.includes('restroom')) {
-      response = `${nearestRestroom.label} is the nearest restroom. It is ${nearestRestroom.distance}px away with a ${crowdLevel(nearestRestroom.crowd)} crowd.`;
+      response = `${nearestRestroom.label} is the nearest restroom. It is about ${formatDistance(nearestRestroom.distance)} away with ${statusText(nearestRestroom.crowd).toLowerCase()}.`;
       setSelectedZoneId(nearestRestroom.id);
     } else if (lower.includes('gate a')) {
       response = 'Gate A is currently crowded. I would not recommend it right now.';
@@ -412,6 +424,10 @@ export default function App() {
 
   const scrollToMap = () => {
     mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const scrollToAssistant = () => {
+    assistantSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -445,7 +461,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="space-y-4">
+        <main className="space-y-4 pb-20 lg:pb-0">
           <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.05] p-5 shadow-[0_24px_90px_rgba(2,6,23,0.35)] backdrop-blur-xl md:p-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(248,138,24,0.16),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(80,200,120,0.18),_transparent_32%)]" />
             <div className="relative grid gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
@@ -479,7 +495,7 @@ export default function App() {
                 {[
                   { label: 'Best Gate', value: bestGate.gate.label, tone: 'text-emerald-200' },
                   { label: 'Crowd Level', value: statusText(bestGate.gate.crowd), tone: 'text-amber-200' },
-                  { label: 'Route Distance', value: `${route.distance}px`, tone: 'text-sky-200' },
+                  { label: 'Route Distance', value: routeDistanceLabel, tone: 'text-sky-200' },
                   { label: 'Nearest Food', value: nearestFood.label, tone: 'text-rose-100' },
                 ].map((item) => (
                   <div key={item.label} className="rounded-[1.35rem] border border-white/10 bg-slate-950/35 p-4 shadow-[0_12px_40px_rgba(2,6,23,0.24)]">
@@ -525,16 +541,16 @@ export default function App() {
               <div className="rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-slate-950/55 via-slate-950/35 to-emerald-950/20 p-4 shadow-inner shadow-black/20">
                 <p className="text-sm text-slate-300">Suggested Route</p>
                 <h3 className="mt-2 text-xl font-semibold text-white">
-                  {selectedZoneData?.label ? `Gate B → ${selectedZoneData.label}` : 'Gate B → Section C → Seat'}
+                  {`${routeStart} -> ${routeTarget}`}
                 </h3>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                     <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Distance</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{route.distance}px estimated walk</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{routeDistanceLabel} estimated walk</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Crowd Level</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{statusText(bestGate.gate.crowd)}</p>
+                    <p className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Estimated Time</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{routeEtaLabel}</p>
                   </div>
                 </div>
                 <button
@@ -551,18 +567,21 @@ export default function App() {
           <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <SectionCard title="Smart Queue Management" icon="🍔">
               <div className="space-y-3">
-                {[nearestFood, nearestRestroom, zones.find((zone) => zone.id === 'food3')].map((item) => (
-                  <div key={item.id} className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 ${item.id === nearestFood.id ? 'border-emerald-400/30 bg-emerald-400/10 shadow-[0_10px_30px_rgba(16,185,129,0.12)]' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]'}`}>
+                {queueItems.map((item) => {
+                  const isRecommended = item.id === nearestFood.id || item.id === nearestRestroom.id;
+                  return (
+                  <div key={item.id} className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 ${isRecommended ? 'border-emerald-400/30 bg-emerald-400/10 shadow-[0_10px_30px_rgba(16,185,129,0.12)]' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]'}`}>
                     <div>
                       <p className="font-semibold text-white">{item.label}</p>
                       <p className="text-xs text-slate-400">{item.type === 'food' ? 'Food stall' : 'Restroom'} · {crowdLevel(item.crowd)} crowd</p>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-white">{item.wait} min</p>
-                      <p className="text-xs text-slate-400">{item.id === nearestFood.id || item.id === nearestRestroom.id ? 'Recommended' : 'Alternative'}</p>
+                      <p className="text-xs text-slate-400">{isRecommended ? 'Recommended' : 'Alternative'}</p>
                     </div>
                   </div>
-                ))}
+                );
+                })}
               </div>
             </SectionCard>
 
@@ -582,7 +601,7 @@ export default function App() {
             </SectionCard>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+          <section ref={assistantSectionRef} className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <SectionCard title="AI Assistant" icon="🤖">
               <div className="flex h-[380px] flex-col rounded-[1.6rem] border border-white/10 bg-slate-950/40 shadow-inner shadow-black/20">
                 <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -631,6 +650,9 @@ export default function App() {
             routePoints={route.points}
             selectedZone={selectedZoneData}
             selectedPath={selectedPath}
+            routeStart={routeStart}
+            routeTarget={routeTarget}
+            routeEtaLabel={routeEtaLabel}
             onSelectZone={(zone) => {
               setSelectedZoneId(zone.id);
               setSelectedPathId(null);
@@ -645,6 +667,30 @@ export default function App() {
             }}
             bestGate={bestGate}
           />
+
+          <div className="sticky bottom-3 z-30 mt-2 flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/80 p-2 shadow-2xl shadow-black/30 backdrop-blur lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSelectedZoneId(bestGate.gate.id)}
+              className="flex-1 rounded-xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950"
+            >
+              Best Gate
+            </button>
+            <button
+              type="button"
+              onClick={scrollToMap}
+              className="flex-1 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Map
+            </button>
+            <button
+              type="button"
+              onClick={scrollToAssistant}
+              className="flex-1 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+            >
+              Ask AI
+            </button>
+          </div>
         </main>
       </div>
     </div>
