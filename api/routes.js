@@ -41,7 +41,9 @@ function asyncHandler(fn) {
 
 // ── Health Check ───────────────────────────────────────────────────────────────
 router.get('/health', (req, res) => {
-  const geminiConfigured = !!(process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your_'));
+  const hasDirectGeminiKey = !!(process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.includes('your_'));
+  const hasSecretGeminiKey = !!process.env.GEMINI_API_KEY_SECRET;
+  const geminiConfigured = hasDirectGeminiKey || hasSecretGeminiKey;
   const firebaseConfigured = !!(process.env.FIREBASE_PROJECT_ID && !process.env.FIREBASE_PROJECT_ID.includes('your-'));
   const secretManagerConfigured = !!process.env.GEMINI_API_KEY_SECRET;
 
